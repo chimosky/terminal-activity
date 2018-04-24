@@ -37,9 +37,12 @@ except:
 from gi.repository import GLib
 from gi.repository import Gtk
 from gi.repository import Gdk
+from gi.repository import GObject
 from gi.repository import Vte
 from gi.repository import Pango
 
+from sugar3.graphics import style
+from sugar3.graphics.icon import Icon
 from sugar3.graphics.toolbutton import ToolButton
 from sugar3.graphics.toolbarbox import ToolbarBox
 from sugar3.graphics.toolbarbox import ToolbarButton
@@ -53,7 +56,7 @@ from sugar3 import env
 from widgets import BrowserNotebook
 from widgets import TabLabel
 
-from helpbutton import HelpButton
+from helpbutton import HelpWidget
 
 
 MASKED_ENVIRONMENT = [
@@ -128,7 +131,7 @@ class TerminalActivity(activity.Activity):
         self._previous_tab_toolbar = None
         self._next_tab_toolbar = None
 
-        helpbutton = self._create_help_button()
+        helpbutton = self._help_button_cb()
         toolbar_box.toolbar.insert(helpbutton, -1)
         helpbutton.show_all()
 
@@ -254,38 +257,6 @@ class TerminalActivity(activity.Activity):
 
     def __fullscreen_cb(self, button):
         self.fullscreen()
-
-    def _create_help_button(self):
-        helpitem = HelpButton()
-
-        helpitem.add_section(_('Useful commands'))
-        helpitem.add_section(_('cd'))
-        helpitem.add_paragraph(_('Change directory'))
-        helpitem.add_paragraph(_('To use it, write: cd directory'))
-        helpitem.add_paragraph(
-            _('If you call it without parameters, will change\n'
-                'to the user directory'))
-        helpitem.add_section(_('ls'))
-        helpitem.add_paragraph(_('List the content of a directory.'))
-        helpitem.add_paragraph(_('To use it, write: ls directory'))
-        helpitem.add_paragraph(
-            _('If you call it without parameters, will list the\n'
-                'working directory'))
-        helpitem.add_section(_('cp'))
-        helpitem.add_paragraph(_('Copy a file to a specific location'))
-        helpitem.add_paragraph(_('Call it with the file and the new location'))
-        helpitem.add_paragraph(_('Use: cp file directory'))
-        helpitem.add_section(_('rm'))
-        helpitem.add_paragraph(_('Removes a file in any path'))
-        helpitem.add_paragraph(_('Use: rm file'))
-        helpitem.add_section(_('su'))
-        helpitem.add_paragraph(_('Login as superuser (root)'))
-        helpitem.add_paragraph(
-            _('The root user is the administrator of the\nsystem'))
-        helpitem.add_paragraph(
-            _('You must be careful, because you can modify\nsystem files'))
-
-        return helpitem
 
     def __open_tab_cb(self, btn):
         vt = self._notebook.get_nth_page(self._notebook.get_current_page()).vt
@@ -645,3 +616,207 @@ class TerminalActivity(activity.Activity):
             vt.set_visible_bell(visible_bell)
 
         conf.write(open(conf_file, 'w'))
+
+    def _help_button_cb(self):
+            help_window = _HelpWindow()
+            help_window.set_transient_for(self.get_toplevel())
+            help_window.show_all()
+"""
+    def _create_help_button(self):
+        helpitem = HelpButton()
+
+        helpitem.add_section(_('Useful commands'))
+        helpitem.add_section(_('cd'))
+        helpitem.add_paragraph(_('Change directory'))
+        helpitem.add_paragraph(_('To use it, write: cd directory'))
+        helpitem.add_paragraph(
+            _('If you call it without parameters, will change\n'
+                'to the user directory'))
+        helpitem.add_section(_('ls'))
+        helpitem.add_paragraph(_('List the content of a directory.'))
+        helpitem.add_paragraph(_('To use it, write: ls directory'))
+        helpitem.add_paragraph(
+            _('If you call it without parameters, will list the\n'
+                'working directory'))
+        helpitem.add_section(_('cp'))
+        helpitem.add_paragraph(_('Copy a file to a specific location'))
+        helpitem.add_paragraph(_('Call it with the file and the new location'))
+        helpitem.add_paragraph(_('Use: cp file directory'))
+        helpitem.add_section(_('rm'))
+        helpitem.add_paragraph(_('Removes a file in any path'))
+        helpitem.add_paragraph(_('Use: rm file'))
+        helpitem.add_section(_('su'))
+        helpitem.add_paragraph(_('Login as superuser (root)'))
+        helpitem.add_paragraph(
+            _('The root user is the administrator of the\nsystem'))
+        helpitem.add_paragraph(
+            _('You must be careful, because you can modify\nsystem files'))
+
+        return helpitem
+"""
+class _DialogWindow(Gtk.Window):
+    # A base class for a modal dialog window.
+    def __init__(self, icon_name, title):
+        super(_DialogWindow, self).__init__()
+
+        self.set_border_width(style.LINE_WIDTH)
+        offset = style.GRID_CELL_SIZE
+        width = Gdk.Screen.width() / 2
+        height = Gdk.Screen.height() / 2
+        self.set_size_request(width, height)
+        self.set_position(Gtk.WindowPosition.CENTER_ALWAYS)
+        self.set_decorated(False)
+        self.set_resizable(False)
+        self.set_modal(True)
+
+        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self.add(vbox)
+
+        toolbar = _DialogToolbar(icon_name, title)
+        toolbar.connect('stop-clicked', self._stop_clicked_cb)
+        vbox.pack_start(toolbar, expand=False, fill=False, padding=0)
+
+        self.content_vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self.content_vbox.set_border_width(style.DEFAULT_SPACING)
+        vbox.add(self.content_vbox)
+
+        self.connect('realize', self._realize_cb)
+        self.connect('key-press-event', self._key_press_event_cb)
+
+    def _stop_clicked_cb(self, source):
+        self.destroy()
+
+    def _realize_cb(self, source):
+        self.set_type_hint(Gdk.WindowTypeHint.DIALOG)
+        self.get_window().set_accept_focus(True)
+
+    def _key_press_event_cb(self, source, event):
+        if event.keyval == Gdk.KEY_Escape:
+            self.destroy()
+        elif event.keyval == Gdk.KEY_q and \
+            event.state & Gdk.ModifierType.CONTROL_MASK != 0:
+            Gtk.main_quit()
+
+class _HelpWindow(_DialogWindow):
+    # A dialog window to display the game instructions.
+    def __init__(self):
+        super(_HelpWindow, self).__init__('toolbar-help', _("Help"))
+
+        offset = style.GRID_CELL_SIZE
+        width = Gdk.Screen.width() - offset * 2
+        height = Gdk.Screen.height() - offset * 2
+        self.set_size_request(width, height)
+
+        self._help_widget = HelpWidget(self._icon_file)
+        self.content_vbox.pack_start(self._help_widget, True, True, 0)
+
+        self._help_nav_bar = _HelpNavBar()
+        self.content_vbox.pack_end(self._help_nav_bar, expand=False,
+                                   fill=False, padding=style.DEFAULT_SPACING)
+
+        for (signal_name, callback) in [
+                ('forward-clicked', self._forward_clicked_cb),
+                ('reload-clicked', self._reload_clicked_cb),
+                ('back-clicked', self._back_clicked_cb)]:
+            self._help_nav_bar.connect(signal_name, callback)
+
+        self._update_prev_next()
+
+    def _forward_clicked_cb(self, source):
+        self._help_widget.next_stage()
+        self._update_prev_next()
+
+    def _back_clicked_cb(self, source):
+        self._help_widget.prev_stage()
+        self._update_prev_next()
+
+    def _reload_clicked_cb(self, source):
+        self._help_widget.replay_stage()
+
+    def _icon_file(self, icon_name):
+        theme = Gtk.IconTheme.get_default()
+        info = theme.lookup_icon(icon_name, 0, 0)
+        return info.get_filename()
+
+    def _update_prev_next(self):
+        hw = self._help_widget
+        self._help_nav_bar.set_can_prev_stage(hw.can_prev_stage())
+        self._help_nav_bar.set_can_next_stage(hw.can_next_stage())
+
+class _DialogToolbar(Gtk.Toolbar):
+    # Displays a dialog window's toolbar, with title, icon, and close box.
+    __gsignals__ = {
+        'stop-clicked'       : (GObject.SignalFlags.RUN_LAST, None, ()),
+    }
+    def __init__(self, icon_name, title):
+        super(_DialogToolbar, self).__init__()
+
+        icon = Icon()
+        icon.set_from_icon_name(icon_name, Gtk.IconSize.LARGE_TOOLBAR)
+        self._add_widget(icon)
+
+        self._add_separator()
+
+        label = Gtk.Label(label=title)
+        self._add_widget(label)
+
+        self._add_separator(expand=True)
+
+        stop = ToolButton(icon_name='dialog-cancel')
+        stop.set_tooltip(_('Done'))
+        stop.connect('clicked', self._stop_clicked_cb)
+        self.add(stop)
+
+    def _add_separator(self, expand=False):
+        separator = Gtk.SeparatorToolItem()
+        separator.set_expand(expand)
+        separator.set_draw(False)
+        self.add(separator)
+
+    def _add_widget(self, widget):
+        tool_item = Gtk.ToolItem()
+        tool_item.add(widget)
+        self.add(tool_item)
+
+    def _stop_clicked_cb(self, button):
+        self.emit('stop-clicked')
+
+class _HelpNavBar(Gtk.HButtonBox):
+    # A widget to display the navigation controls at the bottom of the help
+    # dialog.
+    __gsignals__ = {
+        'forward-clicked' : (GObject.SignalFlags.RUN_LAST, None, ()),
+        'back-clicked'    : (GObject.SignalFlags.RUN_LAST, None, ()),
+        'reload-clicked'  : (GObject.SignalFlags.RUN_LAST, None, ()),
+    }
+
+    def __init__(self):
+        super(_HelpNavBar, self).__init__()
+
+        self.set_layout(Gtk.ButtonBoxStyle.SPREAD)
+
+        def add_button(icon_name, tooltip, signal_name):
+            icon = Icon()
+            icon.set_from_icon_name(icon_name, Gtk.IconSize.LARGE_TOOLBAR)
+            button = Gtk.Button()
+            button.set_image(icon)
+            button.set_tooltip_text(tooltip)
+            self.add(button)
+
+            def callback(source):
+                self.emit(signal_name)
+            button.connect('clicked', callback)
+
+            return button
+
+        self._back_button = add_button('back', _("Previous"), 'back-clicked')
+        add_button('reload', _("Again"), 'reload-clicked')
+        self._forward_button = add_button('forward', _("Next"), 'forward-clicked')
+
+    def set_can_prev_stage(self, can_prev_stage):
+        self._back_button.set_sensitive(can_prev_stage)
+
+    def set_can_next_stage(self, can_next_stage):
+        self._forward_button.set_sensitive(can_next_stage)
+
+
