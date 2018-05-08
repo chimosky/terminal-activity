@@ -56,7 +56,7 @@ from sugar3 import env
 from widgets import BrowserNotebook
 from widgets import TabLabel
 
-from helpbutton import HelpWidget
+from helpwidget import HelpWidget
 
 
 MASKED_ENVIRONMENT = [
@@ -618,9 +618,10 @@ class TerminalActivity(activity.Activity):
         conf.write(open(conf_file, 'w'))
 
     def _help_button_cb(self):
-            help_window = _HelpWindow()
-            help_window.set_transient_for(self.get_toplevel())
-            help_window.show_all()
+        help_window = _HelpWindow()
+        help_window.set_transient_for(self.get_toplevel())
+        help_window.show_all()
+        return help_window
 """
     def _create_help_button(self):
         helpitem = HelpButton()
@@ -818,5 +819,3 @@ class _HelpNavBar(Gtk.HButtonBox):
 
     def set_can_next_stage(self, can_next_stage):
         self._forward_button.set_sensitive(can_next_stage)
-
-
